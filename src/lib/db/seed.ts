@@ -13,8 +13,18 @@
 import postgres from 'postgres';
 import { uuidv7 } from 'uuidv7';
 import * as argon2 from 'argon2';
-import { birrToSantim, normalisePhone, ruleSetFor, buildPayslip, annualLeaveEntitlement, type Santim } from '../domain';
-import { DEMO_PROPERTY_ID, DEMO_ADMIN_USER_ID } from '../demo';
+import {
+  birrToSantim,
+  normalisePhone,
+  ruleSetFor,
+  buildPayslip,
+  annualLeaveEntitlement,
+  type Santim,
+  type EarningLine,
+  type DeductionLine,
+  type TaxBand,
+} from '../domain';
+import { DEMO_PROPERTY_ID, DEMO_ADMIN_USER_ID, DEMO_FINANCE_USER_ID } from '../demo';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is not set. Copy .env.example to .env.local.');
@@ -23,7 +33,9 @@ const sql = postgres(databaseUrl, { max: 1, onnotice: () => {} });
 // Fixed IDs so re-running against a fresh database is reproducible.
 const PROPERTY_ID = DEMO_PROPERTY_ID;
 const ADMIN_USER_ID = DEMO_ADMIN_USER_ID;
+const FINANCE_USER_ID = DEMO_FINANCE_USER_ID;
 const GROUP_ADMIN_ROLE_ID = '00000000-0000-4000-8000-000000000001'; // seeded in 0006
+const FINANCE_APPROVER_ROLE_ID = '00000000-0000-4000-8000-000000000004'; // seeded in 0006
 
 const DEPARTMENTS = [
   { code: 'FO', name: 'Front Office', nameAm: 'የፊት ጽ/ቤት', minSantim: 8000, maxSantim: 14000, ops: true },
@@ -127,6 +139,17 @@ async function main() {
     await tx`
       INSERT INTO iam.user_roles (id, user_id, role_id, property_id, granted_by)
       VALUES (${uuidv7()}, ${ADMIN_USER_ID}, ${GROUP_ADMIN_ROLE_ID}, NULL, ${ADMIN_USER_ID})`;
+
+    // A distinct principal for payroll approval, so the four-eyes constraint
+    // (approver != calculator, enforced by payroll.runs' own CHECK) has a real
+    // second person to demonstrate with, not just the one seeded admin.
+    await tx`
+      INSERT INTO iam.users (id, email, password_hash, display_name, preferred_locale, preferred_calendar)
+      VALUES (${FINANCE_USER_ID}, 'finance@noru.local', ${passwordHash}, 'Dawit Samuel', 'en-ET', 'ethiopian')`;
+
+    await tx`
+      INSERT INTO iam.user_roles (id, user_id, role_id, property_id, granted_by)
+      VALUES (${uuidv7()}, ${FINANCE_USER_ID}, ${FINANCE_APPROVER_ROLE_ID}, ${PROPERTY_ID}, ${ADMIN_USER_ID})`;
   });
 
   // --- departments + one position each -----------------------------------
@@ -362,8 +385,9 @@ async function main() {
     total_deductions_santim: Santim;
     net_pay_santim: Santim;
     employer_cost_santim: Santim;
-    earning_lines: string;
-    deduction_lines: string;
+    earning_lines: EarningLine[];
+    deduction_lines: DeductionLine[];
+    tax_bands: TaxBand[];
     warnings: string[];
   }
   const payslipRows: PayslipRow[] = [];
@@ -401,8 +425,14 @@ async function main() {
       total_deductions_santim: slip.totalDeductionsSantim,
       net_pay_santim: slip.netPaySantim,
       employer_cost_santim: slip.employerCostSantim,
-      earning_lines: JSON.stringify(slip.earnings),
-      deduction_lines: JSON.stringify(slip.deductions),
+      // Passed as raw arrays, not JSON.stringify'd: postgres.js already
+      // serializes a JS value bound to a `::jsonb` cast, so stringifying it
+      // ourselves first double-encodes it into a jsonb *string* containing
+      // JSON text, not a jsonb array — confirmed by hand against a real
+      // connection before landing this fix.
+      earning_lines: slip.earnings,
+      deduction_lines: slip.deductions,
+      tax_bands: slip.paye.bands,
       warnings: slip.warnings,
     });
   }
@@ -429,13 +459,15 @@ async function main() {
         (id, run_id, employee_id, contract_id, employee_no, legal_name, tin, pension_number,
          position_title, department_name, basic_salary_santim, prorated_basic_santim,
          gross_santim, taxable_gross_santim, paye_santim, employee_pension_santim, employer_pension_santim,
-         total_deductions_santim, net_pay_santim, employer_cost_santim, earning_lines, deduction_lines, warnings)
+         total_deductions_santim, net_pay_santim, employer_cost_santim, earning_lines, deduction_lines,
+         tax_bands, warnings)
       VALUES (${row.id}, ${row.run_id}, ${row.employee_id}, ${row.contract_id}, ${empRow.employee_no}, ${legalName},
               ${empRow.tin}, ${empRow.pension_number}, ${row.position_title}, ${row.department_name},
               ${row.basic_salary_santim}, ${row.prorated_basic_santim}, ${row.gross_santim}, ${row.taxable_gross_santim},
               ${row.paye_santim}, ${row.employee_pension_santim}, ${row.employer_pension_santim},
               ${row.total_deductions_santim}, ${row.net_pay_santim}, ${row.employer_cost_santim},
-              ${row.earning_lines}::jsonb, ${row.deduction_lines}::jsonb, ${row.warnings as string[]})`;
+              ${row.earning_lines as unknown as string}::jsonb, ${row.deduction_lines as unknown as string}::jsonb,
+              ${row.tax_bands as unknown as string}::jsonb, ${row.warnings as string[]})`;
   }
   console.log(`  payroll run calculated for ${periodEndIso}: ${employees.length} payslips, rule set ${rules.id}`);
 

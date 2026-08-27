@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { withScope } from '../../../../lib/db/scope';
 import { DEMO_ADMIN_USER_ID, DEMO_PROPERTY_ID } from '../../../../lib/demo';
 import { Icon } from '../../../../components/Icon';
+import { AttendanceCorrections } from '../../../../components/AttendanceCorrections';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,9 +94,9 @@ export default async function AttendanceEmployeeDetailPage({ params }: { params:
       <div className="local-note">
         <Icon name="info" size={15} />
         <span>
-          Read-only by design: <span className="mono">ops.attendance_days</span> and the punches behind it are
-          append-only (CLAUDE.md §6) — a correction is a new, justified punch, not an edit to this row. That
-          correction flow isn&rsquo;t built yet, so there&rsquo;s nothing to edit here honestly.
+          The daily record below is read-only by design: <span className="mono">ops.attendance_days</span> and the
+          punches behind it are append-only (CLAUDE.md §6). A correction is logged as a new, separate record — see
+          Corrections below — never an edit to the original row.
         </span>
       </div>
 
@@ -145,6 +146,8 @@ export default async function AttendanceEmployeeDetailPage({ params }: { params:
           </div>
         )}
       </section>
+
+      <AttendanceCorrections employeeId={employee.id} availableDates={days.map((d) => d.work_date)} />
     </main>
   );
 }

@@ -1,12 +1,16 @@
+import Link from 'next/link';
 import { withScope } from '../../../../lib/db/scope';
-import { DEMO_ADMIN_USER_ID } from '../../../../lib/demo';
+import { DEMO_ADMIN_USER_ID, DEMO_PROPERTY_ID } from '../../../../lib/demo';
 import { formatBirr, santim } from '../../../../lib/domain';
 import { Icon } from '../../../../components/Icon';
+import { PayrollRunActions } from '../../../../components/PayrollRunActions';
+import type { PayrollRunEntry, ApproverOption } from '../../../../lib/records';
 
 export const dynamic = 'force-dynamic';
 
 interface PayslipRow {
   id: string;
+  employee_id: string;
   employee_no: string;
   legal_name: string;
   department_name: string;
@@ -27,6 +31,12 @@ interface RunRow {
   employee_pension_santim: string;
   net_pay_santim: string;
   rule_set_id: string;
+  calculated_by: string;
+  calculated_by_name: string;
+  approved_by: string | null;
+  approved_by_name: string | null;
+  approved_at: string | null;
+  paid_at: string | null;
 }
 
 const money = (v: string) => formatBirr(santim(Number(v)));
@@ -34,17 +44,30 @@ const money = (v: string) => formatBirr(santim(Number(v)));
 export default async function PayrollRunPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
 
-  const { run, payslips } = await withScope({ userId: DEMO_ADMIN_USER_ID }, async (tx) => {
+  const { run, payslips, approvers } = await withScope({ userId: DEMO_ADMIN_USER_ID }, async (tx) => {
     const [runRow] = await tx<RunRow[]>`
-      SELECT id, period_start::text, period_end::text, status, headcount,
-             gross_santim::text, paye_santim::text, employee_pension_santim::text,
-             net_pay_santim::text, rule_set_id
-      FROM payroll.runs WHERE id = ${runId}`;
+      SELECT r.id, r.period_start::text, r.period_end::text, r.status, r.headcount,
+             r.gross_santim::text, r.paye_santim::text, r.employee_pension_santim::text,
+             r.net_pay_santim::text, r.rule_set_id, r.calculated_by, cu.display_name AS calculated_by_name,
+             r.approved_by, au.display_name AS approved_by_name, r.approved_at::text, r.paid_at::text
+      FROM payroll.runs r
+      JOIN iam.users cu ON cu.id = r.calculated_by
+      LEFT JOIN iam.users au ON au.id = r.approved_by
+      WHERE r.id = ${runId}`;
     const payslipRows = await tx<PayslipRow[]>`
-      SELECT id, employee_no, legal_name, department_name,
+      SELECT id, employee_id, employee_no, legal_name, department_name,
              gross_santim::text, paye_santim::text, employee_pension_santim::text, net_pay_santim::text
       FROM payroll.payslips WHERE run_id = ${runId} ORDER BY employee_no`;
-    return { run: runRow, payslips: payslipRows };
+    const approverRows = await tx<ApproverOption[]>`
+      SELECT u.id, u.display_name AS name
+      FROM iam.users u
+      JOIN iam.user_roles ur ON ur.user_id = u.id
+      JOIN iam.role_permissions rp ON rp.role_id = ur.role_id
+      WHERE rp.permission_code = 'payroll.approve'
+        AND (ur.property_id IS NULL OR ur.property_id = ${DEMO_PROPERTY_ID})
+      GROUP BY u.id, u.display_name
+      ORDER BY u.display_name`;
+    return { run: runRow, payslips: payslipRows, approvers: approverRows };
   });
 
   if (!run) {
@@ -55,19 +78,24 @@ export default async function PayrollRunPage({ params }: { params: Promise<{ run
     );
   }
 
+  const runEntry: PayrollRunEntry = {
+    id: run.id,
+    status: run.status,
+    calculatedBy: run.calculated_by,
+    calculatedByName: run.calculated_by_name,
+    approvedBy: run.approved_by,
+    approvedByName: run.approved_by_name,
+    approvedAt: run.approved_at,
+    paidAt: run.paid_at,
+  };
+
   return (
     <main className="page">
       <header className="page__head">
         <div>
           <span className="page__eyebrow">Money · Payroll run</span>
           <h1>{run.period_start} — {run.period_end}</h1>
-          <p className="page__sub">
-            <span className="pill pill--indigo" style={{ marginRight: 8 }}>
-              <span className="pill__dot" />
-              {run.status}
-            </span>
-            rule set <span className="mono">{run.rule_set_id}</span>
-          </p>
+          <PayrollRunActions initialRun={runEntry} approvers={approvers} />
         </div>
       </header>
 
@@ -130,13 +158,24 @@ export default async function PayrollRunPage({ params }: { params: Promise<{ run
             <tbody>
               {payslips.map((slip) => (
                 <tr key={slip.id}>
-                  <td className="mono muted">{slip.employee_no}</td>
-                  <td className="col-name">{slip.legal_name}</td>
-                  <td className="muted">{slip.department_name}</td>
-                  <td className="mono">{money(slip.gross_santim)}</td>
-                  <td className="mono">{money(slip.paye_santim)}</td>
-                  <td className="mono">{money(slip.employee_pension_santim)}</td>
-                  <td className="mono" style={{ fontWeight: 600 }}>{money(slip.net_pay_santim)}</td>
+                  <td colSpan={7} style={{ padding: 0 }}>
+                    <Link
+                      href={`/payroll/${runId}/${slip.employee_id}`}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 0.8fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 0.9fr)',
+                        gap: 8, alignItems: 'center', padding: '12px 16px', textDecoration: 'none', color: 'inherit',
+                      }}
+                    >
+                      <span className="mono muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slip.employee_no}</span>
+                      <span className="col-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slip.legal_name}</span>
+                      <span className="muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slip.department_name}</span>
+                      <span className="mono">{money(slip.gross_santim)}</span>
+                      <span className="mono">{money(slip.paye_santim)}</span>
+                      <span className="mono">{money(slip.employee_pension_santim)}</span>
+                      <span className="mono" style={{ fontWeight: 600 }}>{money(slip.net_pay_santim)}</span>
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

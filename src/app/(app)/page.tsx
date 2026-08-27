@@ -1,8 +1,7 @@
-import Link from 'next/link';
 import { withScope } from '../../lib/db/scope';
 import { DEMO_ADMIN_USER_ID, DEMO_PROPERTY_ID } from '../../lib/demo';
-import { TagBoard, type OnDuty } from '../../components/TagBoard';
-import { Icon } from '../../components/Icon';
+import { DutyDeskClient } from '../../components/DutyDeskClient';
+import type { OnDutyEntry, EmployeeOption, LeaveRequestEntry } from '../../lib/records';
 import '../../components/duty-desk.css';
 
 // Who's on duty changes minute to minute; never freeze this at build time.
@@ -30,7 +29,7 @@ interface CoverageRow {
   department_id: string;
   name: string;
   name_am: string | null;
-  on_duty: number;
+  department_code: string;
   required: number;
 }
 
@@ -49,7 +48,7 @@ export default async function DutyDeskPage() {
   const todayIso = today.toISOString().slice(0, 10);
   const weekday = today.getUTCDay();
 
-  const { onDuty, coverage, rosteredToday, pendingLeave } = await withScope(
+  const { onDuty, coverage, rosteredToday, pendingLeave, employeeOptions } = await withScope(
     { userId: DEMO_ADMIN_USER_ID },
     async (tx) => {
       const onDutyRows = await tx<OnDutyRow[]>`
@@ -62,17 +61,9 @@ export default async function DutyDeskPage() {
         ORDER BY v.first_in_at`;
 
       const coverageRows = await tx<CoverageRow[]>`
-        SELECT d.id AS department_id, d.name, d.name_am,
-               COALESCE(onduty.cnt, 0)::int AS on_duty,
+        SELECT d.id AS department_id, d.name, d.name_am, d.code AS department_code,
                COALESCE(req.total, 0)::int AS required
         FROM org.departments d
-        LEFT JOIN (
-          SELECT e.department_id, COUNT(*) AS cnt
-          FROM ops.on_duty_now v
-          JOIN hr.employees e ON e.id = v.employee_id
-          WHERE v.property_id = ${DEMO_PROPERTY_ID}
-          GROUP BY e.department_id
-        ) onduty ON onduty.department_id = d.id
         LEFT JOIN (
           SELECT department_id, SUM(minimum_staff) AS total
           FROM ops.coverage_requirements
@@ -97,20 +88,27 @@ export default async function DutyDeskPage() {
         JOIN hr.employees e ON e.id = r.employee_id
         JOIN hr.leave_types lt ON lt.id = r.leave_type_id
         WHERE r.property_id = ${DEMO_PROPERTY_ID} AND r.status = 'pending'
-        ORDER BY r.starts_on
-        LIMIT 6`;
+        ORDER BY r.starts_on`;
+
+      const employeeRows = await tx<Array<{ id: string; given_name: string; fathers_name: string; employee_no: string; department_code: string | null }>>`
+        SELECT e.id, e.given_name, e.fathers_name, e.employee_no, d.code AS department_code
+        FROM hr.employees e
+        LEFT JOIN org.departments d ON d.id = e.department_id
+        WHERE e.property_id = ${DEMO_PROPERTY_ID} AND e.archived_at IS NULL AND e.status != 'terminated'
+        ORDER BY e.given_name`;
 
       return {
         onDuty: onDutyRows,
         coverage: coverageRows,
         rosteredToday: Number(rosteredRows[0]?.count ?? 0),
         pendingLeave: pendingLeaveRows,
+        employeeOptions: employeeRows,
       };
     },
   );
 
-  const tagBoardData: OnDuty[] = onDuty.map((row) => ({
-    employeeId: row.employee_id,
+  const onDutyEntries: OnDutyEntry[] = onDuty.map((row) => ({
+    id: row.employee_id,
     employeeNumber: row.employee_no,
     shortName: [row.given_name, row.fathers_name].filter(Boolean).join(' '),
     amharicName: [row.given_name_am, row.fathers_name_am].filter(Boolean).join(' ') || row.given_name,
@@ -120,8 +118,23 @@ export default async function DutyDeskPage() {
     isLate: row.state === 'late',
   }));
 
-  const lateCount = onDuty.filter((row) => row.state === 'late').length;
-  const shortCount = coverage.filter((d) => d.required > 0 && d.on_duty < d.required).length;
+  const employeeOptionRecords: EmployeeOption[] = employeeOptions.map((e) => ({
+    id: e.id,
+    name: [e.given_name, e.fathers_name].filter(Boolean).join(' '),
+    employeeNo: e.employee_no,
+    departmentCode: e.department_code ?? '—',
+    departmentColour: '#0E6A5A',
+  }));
+
+  const pendingLeaveEntries: LeaveRequestEntry[] = pendingLeave.map((row) => ({
+    id: row.id,
+    employeeName: [row.given_name, row.fathers_name].filter(Boolean).join(' '),
+    leaveTypeName: row.leave_type_name,
+    startsOn: row.starts_on,
+    endsOn: row.ends_on,
+    workingDays: row.working_days,
+    status: 'pending',
+  }));
 
   return (
     <main className="page">
@@ -132,116 +145,13 @@ export default async function DutyDeskPage() {
         </div>
       </header>
 
-      <div className="kpi-grid">
-        <div className="kpi">
-          <span className="kpi__icon"><Icon name="grid" /></span>
-          <div className="kpi__body">
-            <span className="kpi__label">On duty now</span>
-            <div className="kpi__value">{onDuty.length}</div>
-            <div className="kpi__delta">of {rosteredToday} rostered today</div>
-          </div>
-        </div>
-        <div className="kpi">
-          <span className="kpi__icon kpi__icon--ochre"><Icon name="clock" /></span>
-          <div className="kpi__body">
-            <span className="kpi__label">Late</span>
-            <div className="kpi__value">{lateCount}</div>
-            <div className="kpi__delta">clocked in past shift start</div>
-          </div>
-        </div>
-        <div className="kpi">
-          <span className="kpi__icon kpi__icon--ember"><Icon name="scale" /></span>
-          <div className="kpi__body">
-            <span className="kpi__label">Short-staffed</span>
-            <div className="kpi__value">{shortCount}</div>
-            <div className="kpi__delta">of {coverage.length} departments</div>
-          </div>
-        </div>
-        <div className="kpi">
-          <span className="kpi__icon kpi__icon--indigo"><Icon name="calendar" /></span>
-          <div className="kpi__body">
-            <span className="kpi__label">Rostered today</span>
-            <div className="kpi__value">{rosteredToday}</div>
-            <div className="kpi__delta">shift assignments</div>
-          </div>
-        </div>
-      </div>
-
-      <TagBoard onDuty={tagBoardData} rosteredCount={rosteredToday} />
-
-      <div className="desk__grid">
-        <section className="card">
-          <header className="card__head">
-            <h2 className="card__title">Cover by department</h2>
-          </header>
-          <div className="card__body">
-            <ul className="cov">
-              {coverage.map((department) => {
-                const short = department.on_duty < department.required;
-                const tight = department.on_duty === department.required && department.required > 0;
-                const pct = department.required > 0 ? (department.on_duty / department.required) * 100 : 100;
-                return (
-                  <li className="cov__row" key={department.department_id}>
-                    <span className="cov__name">{department.name}</span>
-                    <span
-                      className="cov__track"
-                      role="meter"
-                      aria-valuenow={department.on_duty}
-                      aria-valuemin={0}
-                      aria-valuemax={department.required}
-                      aria-label={`${department.name}: ${department.on_duty} of ${department.required}`}
-                    >
-                      <span
-                        className={`cov__fill${short ? ' cov__fill--short' : tight ? ' cov__fill--tight' : ''}`}
-                        style={{ width: `${Math.min(100, pct)}%` }}
-                      />
-                    </span>
-                    <span className={`cov__n mono${short ? ' cov__n--short' : ''}`}>
-                      {department.on_duty}/{department.required}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </section>
-
-        <section className="card">
-          <header className="card__head">
-            <h2 className="card__title">Waiting on you</h2>
-            <span className="card__note mono">{pendingLeave.length}</span>
-          </header>
-          {pendingLeave.length === 0 ? (
-            <div className="empty">
-              <Icon name="tag" size={30} />
-              <h4>Nothing waiting</h4>
-              <p>No pending leave requests right now.</p>
-            </div>
-          ) : (
-            <ul className="queue">
-              {pendingLeave.map((request) => (
-                <li className="queue__item" key={request.id}>
-                  <span className="queue__avatar" aria-hidden="true">
-                    {request.given_name[0]}
-                    {request.fathers_name[0]}
-                  </span>
-                  <span className="queue__main">
-                    <span className="queue__title">
-                      {request.given_name} {request.fathers_name} · {request.leave_type_name}
-                    </span>
-                    <span className="queue__meta mono">
-                      {request.starts_on} – {request.ends_on} · {request.working_days}d
-                    </span>
-                  </span>
-                  <Link href="/leave" className="mini mini--ok">
-                    Review
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
+      <DutyDeskClient
+        initialOnDuty={onDutyEntries}
+        employeeOptions={employeeOptionRecords}
+        coverage={coverage}
+        rosteredToday={rosteredToday}
+        initialPendingLeave={pendingLeaveEntries}
+      />
     </main>
   );
 }
