@@ -22,19 +22,58 @@ Noru Crew is the system that gets it from the staff entrance to the bank file:
 
 | | |
 |---|---|
-| **Duty board** | Weekly rosters per department, with the Labour Proclamation's rest and hours rules checked before anything is published |
+| **Duty desk** | Who's on the floor right now, live, plus coverage by department and leave requests waiting on you |
+| **Roster** | Weekly rosters per department, with the Labour Proclamation's rest and hours rules checked before anything is published |
 | **Attendance** | Append-only punch log reconciled into daily worked and overtime, split into the four rates Ethiopian law prices separately |
 | **Leave** | Annual, sick, maternity, paternity and the rest, on balances that run to the Ethiopian fiscal year |
-| **Payroll** | Ethiopian-month runs, PAYE and pension, four-eyes approval, bank file, statutory filings |
-| **People** | Contracts, documents, certifications, disciplinary record |
+| **Payroll** | Ethiopian-month runs, PAYE band-by-band, pension, four-eyes approval |
+| **Staff, departments, roles** | Directory, org structure and permission sets, with real CRUD on top |
 
 <br>
 
-> ### See it first
->
-> **[`demo/noru-crew-ui.html`](demo/noru-crew-ui.html)** — open it in a browser.
-> No build, no server, no install. Six working screens, and the Ethiopian
-> calendar and clock toggles run the same conversion the API does.
+## See it
+
+<table>
+<tr><td colspan="2">
+
+**Sign in** — the enamel-green hero, ported straight from the design system
+
+![Sign in](docs/screenshots/login.png)
+
+</td></tr>
+<tr>
+<td width="50%">
+
+**Duty desk** — the tag board
+
+![Duty desk](docs/screenshots/duty-desk.png)
+
+</td>
+<td width="50%">
+
+**Roster** — click a cell to assign or change a shift
+
+![Roster](docs/screenshots/roster.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Staff** — directory with real add/edit/remove
+
+![Staff](docs/screenshots/staff.png)
+
+</td>
+<td width="50%">
+
+**Payroll** — refuses to calculate while attendance is still open
+
+![Payroll](docs/screenshots/payroll.png)
+
+</td>
+</tr>
+</table>
 
 ---
 
@@ -42,12 +81,13 @@ Noru Crew is the system that gets it from the staff entrance to the bank file:
 
 Two decisions carry most of the interface.
 
-**The Ethiopian date comes first.** Every date in the product leads with
+**The Ethiopian date comes first — by default.** Every date leads with
 `Hamus · Nehase 21, 2018` and puts `27 Aug 2026` underneath in smaller type.
 That is the wrong way round for almost every business system sold in Ethiopia,
-and it is the right way round for the people using this one. The Gregorian date
-never disappears, because banks and suppliers need it — it just stops being the
-one that matters.
+and it is the right way round for the people using this one. A toggle in the
+topbar swaps which calendar leads — Gregorian gets full international
+weekday/month naming when it does — but neither one ever disappears; banks
+and suppliers need the Gregorian date regardless of which is primary.
 
 **The palette is enamelware, not the flag.** Green, gold and red aimed at an
 Ethiopian audience defaults to a flag, and a flag on a payroll screen is
@@ -56,10 +96,9 @@ the building is full of: the deep painted green of a *rekebot* coffee tray, the
 ochre of teff roasting, the red of berbere. On a cool grey-green paper they read
 as pigment, not as UI accent.
 
-Type is the **IBM Plex** superfamily for one concrete reason: Plex Sans Ethiopic
-is drawn to match Plex Sans, so an Amharic label and its English sibling sit on
-the same baseline at the same weight. Toggle the language in the demo and
-nothing shifts. Very little else open and widely available does that.
+Type is **Inter**, **Manrope** and **JetBrains Mono**, with **IBM Plex Sans
+Ethiopic** as the Amharic companion face so bilingual labels sit at a
+comparable weight without a jarring font swap mid-sentence.
 
 And one thing that is simply enjoyable: the **tag board**. Every hotel
 back-of-house has a rack of numbered tags by the staff entrance that you flip
@@ -82,7 +121,8 @@ There is no `last_name` column and adding one would be a bug, not a feature.
 **Thirteen months.** Twelve of thirty days, then Pagume of five or six. Payroll
 periods are Ethiopian months. The fiscal year opens on Hamle 1. Leave balances
 accrue against it. Conversion goes through Julian Day Numbers and is exact —
-`packages/core` round-trips every date from 1900 to 2100 with no mismatches.
+`src/lib/domain` round-trips every date from 1900 to 2100 with no mismatches
+(verified by the test suite, not just asserted).
 
 **Six hours out.** The Ethiopian clock counts from dawn, so 07:00 is *1:00
 ጠዋት*. A night porter reads their shift as starting at *4:00 ለሊት*. The system
@@ -96,7 +136,8 @@ named `*_santim`. There is no floating-point number anywhere near a payslip.
 from ETB 600 to ETB 2,000 and seven bands became six. Both that rule set and the
 superseded 979/2016 one live as rows with effective dates. Recalculating a
 payslip from 2016 EC uses the law that applied then, because that is the only
-way an audit or a labour dispute can be answered honestly.
+way an audit or a labour dispute can be answered honestly. The payroll module
+shows the working band by band, not just the total.
 
 | Monthly taxable | Rate |
 |---:|---:|
@@ -140,37 +181,43 @@ staff, and a minimum working age of 15 enforced by a `CHECK` constraint.
 
 ## Architecture
 
-A modular monolith. One deployable, strict internal seams.
+A single Next.js 15 app. Server Components query Postgres directly; mutations
+go through Server Actions where they're wired up. No separate API process.
 
 ```
 noru-crew/
-├── packages/core/          Domain logic. Zero dependencies. No I/O.
-│   ├── ethiopian-calendar    JDN conversion, fiscal year, 13 months
-│   ├── ethiopian-time        dawn-based clock
-│   ├── money                 santim, allocation without rounding loss
-│   ├── names                 three-part names, phone, TIN
-│   ├── payroll/              versioned rules, PAYE, pension, overtime, payslip
-│   ├── leave/                entitlement, sick-pay taper
-│   └── scheduling/           rest, hours, coverage rules
+├── src/
+│   ├── app/                 App Router. (auth)/login, (app)/ the authenticated shell
+│   │   └── (app)/             duty desk, roster, attendance, staff, departments,
+│   │                          leave, payroll, roles — one route per module
+│   ├── components/          TagBoard, AppShell, and the interactive client
+│   │                        components (RosterGrid, StaffTable, PayrollRunActions…)
+│   ├── lib/
+│   │   ├── domain/            Pure domain logic. Zero dependencies, no I/O.
+│   │   │   ├── ethiopian-calendar   JDN conversion, fiscal year, 13 months
+│   │   │   ├── ethiopian-time       dawn-based clock
+│   │   │   ├── money                santim, allocation without rounding loss
+│   │   │   ├── names                three-part names, phone, TIN
+│   │   │   ├── payroll/             versioned rules, PAYE, pension, overtime, payslip
+│   │   │   ├── leave/               entitlement, sick-pay taper
+│   │   │   └── scheduling/          rest, hours, coverage rules
+│   │   ├── db/                 connection, tenant scoping (withScope), migration
+│   │   │                       runner, seed script
+│   │   ├── local-store.ts      the local-only CRUD overlay (see below)
+│   │   └── schemas.ts          Zod schemas
+│   └── globals.css          the enamelware design system
 │
-├── packages/contracts/     Zod schemas shared by API and web. One definition
-│                           of every request and response, both sides.
-│
-├── apps/api/               Fastify. routes → service → repository per module.
-│   ├── db/migrations/        forward-only, checksummed SQL
-│   ├── lib/                  errors, rbac, audit, ids
-│   └── modules/              auth · employees · scheduling · attendance
-│                             leave · payroll
-│
-└── demo/                   The standalone UI prototype.
+├── db/migrations/           Forward-only, checksummed SQL. Six files: schemas,
+│                            people, operations, payroll, RLS + views, seed data.
+└── docs/                    Architecture, data model, localisation, ADRs.
 ```
 
 **Why a monolith.** Payroll reads attendance, which reads rosters, which read
 contracts and leave. Splitting that across services buys distributed
-transactions and buys nothing else. The module boundaries are real and enforced
-by review; if one ever needs to leave, the seam is already cut.
+transactions and buys nothing else. The module boundaries are real; if one ever
+needs to leave, the seam is already cut.
 
-**Why the domain is pure.** `packages/core` has no database handle, no clock, no
+**Why the domain is pure.** `src/lib/domain` has no database handle, no clock, no
 config. Tax arithmetic and rest-period rules are the parts that must be provably
 correct, and they are testable by calling a function with numbers. That is why
 the test suite runs in under a second and why the calendar could be verified
@@ -180,7 +227,7 @@ across two centuries.
 `EXCLUDE` constraints with GiST that make double-booking a shift *unrepresentable*,
 generated columns, row-level security, partial indexes, `citext`. An ORM's
 migration DSL cannot express most of that, so it would be hand-written SQL
-inside a wrapper. This skips the wrapper.
+inside a wrapper anyway. This skips the wrapper.
 
 ### Correctness lives in the database
 
@@ -199,11 +246,28 @@ what makes them true.
 ### Two operational rules worth stating
 
 **Attendance must be closed before payroll can calculate.** Not a warning — a
-precondition failure that names how many days are still open. Paying from
-unreconciled attendance is how you end up re-running a month.
+precondition failure that names how many days are still open. The Payroll page
+checks this live: try starting a run for an open period and it refuses with the
+exact count, the same way the database would.
 
-**Approval needs a second person.** Enforced by that database constraint, so it
-survives someone calling the API directly.
+**Approval needs a second person.** Enforced by a database `CHECK`, so it
+survives someone calling the write path directly — and the app seeds a distinct
+finance-approver principal specifically so this has a real second person to
+demonstrate against, not just a label.
+
+### What's real, and what's a local-only demo
+
+Everything you read on every page — staff, rosters, attendance, leave balances,
+payroll figures, the band-by-band PAYE working — comes from live Postgres
+queries against seeded data. Nothing on screen is fabricated.
+
+What *doesn't* persist: there's no session/auth flow yet (BUILD-PROMPT step 5),
+so there's no principal to attribute a write to and no write API wired up.
+Interactive actions — clock in/out, assigning a shift, approving leave or a
+payroll run, editing a staff record — apply on top of the real server data
+through a small `localStorage` overlay (`src/lib/local-store.ts`) instead, and
+every surface that does this says so. Clear your browser storage and it's back
+to exactly what's in the database.
 
 ---
 
@@ -213,15 +277,16 @@ Requires Node 22+, pnpm 9+, Docker.
 
 ```bash
 pnpm install
-cp .env.example .env
-node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"  # paste into JWT_SIGNING_KEYS
+cp .env.example .env.local
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"  # paste into SESSION_SECRET
 
 pnpm db:up          # postgres + migrations
-pnpm --filter @noru/api seed:demo
+pnpm seed           # one property, 40 staff, a locked month of attendance, a payroll run
 pnpm dev
 ```
 
-API on `:4000`, health at `/health`.
+App on `:3000`. Demo login is shown by the seed script (`admin@noru.local`) —
+there's no auth flow yet to actually sign in with, see above.
 
 ```bash
 pnpm verify         # typecheck + lint + test
@@ -232,31 +297,24 @@ pnpm db:reset       # drop, migrate, reseed
 
 ## Honest status
 
-I built this in a sandbox with **no network access**, which shapes what you can
-trust.
+**Verified by execution, not just asserted.** The Ethiopian calendar
+conversion, round-tripped across 1900–2100 with zero mismatches. The PAYE and
+pension arithmetic, computed band by band against hand-worked examples. The six
+migrations, applied against a real Postgres — two real bugs were found this way
+(an ambiguous column reference in the seed data, a double-JSON-encoding bug in
+how tax bands were stored) and fixed forward, never patched in place. `pnpm
+verify` and `pnpm build` are both clean.
 
-**Verified by execution.** The Ethiopian calendar conversion, round-tripped
-across 1900–2100 with zero mismatches and spot-checked against known dates
-(Genna 2026 → Tahsas 29; today → Nehase 21, 2018). The PAYE and pension
-arithmetic, computed band by band against worked examples — this caught a wrong
-expected value I had written for the superseded 979/2016 rules.
+**Please verify the tax bands with the Ministry of Revenues.** The source used
+for Proclamation 1395/2025 was a secondary tax guide. The figures are
+internally consistent and match published worked examples, but this is the one
+number in the system where being wrong is expensive.
 
-**Not verified by execution.** Everything else. Dependencies could not be
-installed, so `tsc` and `vitest` have never run. Postgres was not available, so
-**the migrations have never been applied**. I reviewed the SQL closely and
-corrected several things that would have failed — an inline `UNIQUE` constraint
-that needed to be an index, generated columns using `AT TIME ZONE`, which is
-`STABLE` rather than `IMMUTABLE` — but expect to shake something out on first
-run.
-
-**Please verify the tax bands with the Ministry of Revenues.** My source for
-1395/2025 was a secondary tax guide. The figures are internally consistent and
-match published worked examples, but this is the one number in the system where
-being wrong is expensive, and the seed data says so in a comment.
-
-**Not built.** Web front-end beyond the demo prototype; PDF payslips; bank file
-export beyond the schema; the mobile clock-in surface. `docs/` and
-`CLAUDE.md` describe how these are meant to fit.
+**Not built yet.** Real auth (session cookies, argon2, RBAC middleware); the
+attendance reconciliation pipeline that would turn raw punches into
+`ops.attendance_days` (the seed writes reconciled rows directly); persisting
+any of the interactive actions described above; PDF payslips; bank file export.
+`docs/` and `CLAUDE.md` describe how these are meant to fit.
 
 ---
 
