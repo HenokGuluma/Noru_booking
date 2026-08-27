@@ -1,0 +1,43 @@
+{
+  "name": "noru-crew",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Noru Crew — staff operations for Noru Booking hotels",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "db:up": "docker compose up -d --wait postgres && pnpm migrate",
+    "db:reset": "docker compose down -v && pnpm db:up && pnpm seed",
+    "migrate": "tsx --env-file=.env.local src/lib/db/migrate.ts up",
+    "migrate:status": "tsx --env-file=.env.local src/lib/db/migrate.ts status",
+    "seed": "tsx --env-file=.env.local src/lib/db/seed.ts",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test"
+  },
+  "dependencies": {
+    "next": "^15.0.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "postgres": "^3.4.5",
+    "zod": "^3.23.8",
+    "argon2": "^0.41.1",
+    "server-only": "^0.0.1",
+    "uuidv7": "^1.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.4",
+    "eslint": "^9.13.0",
+    "eslint-config-next": "^15.0.3",
+    "@eslint/eslintrc": "^3.1.0"
+  }
+}

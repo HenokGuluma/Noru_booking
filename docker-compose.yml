@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: noru_crew
+      POSTGRES_USER: noru
+      POSTGRES_PASSWORD: noru_dev_only
+      # Ethiopian collation is not in the base image; ICU handles Ge'ez ordering.
+      POSTGRES_INITDB_ARGS: '--locale-provider=icu --icu-locale=am-ET --encoding=UTF8'
+    # 5432 is taken by another project's container on this machine; mapped to
+    # 5434 on the host instead. Update DATABASE_URL if you change this.
+    ports: ['5434:5432']
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U noru -d noru_crew']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    # Employee documents, photos and payslip PDFs. Not wired into the app yet
+    # (see README "Honest status") — kept here so the object-store dependency
+    # is already in place when that work starts.
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: noru
+      MINIO_ROOT_PASSWORD: noru_dev_only
+    ports: ['9000:9000', '9001:9001']
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+  minio_data:

@@ -1,0 +1,145 @@
+.tagboard {
+  background: linear-gradient(180deg, #0c4e43, var(--enamel-deep));
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.tagboard__head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+}
+
+.tagboard__title {
+  font-family: var(--cond);
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.tagboard__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7fd9c0;
+}
+
+.tagboard__live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3fd9b0;
+  animation: tagboard-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes tagboard-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.tagboard__count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: #8fb5a9;
+}
+
+/* The rail the hooks hang from. */
+.tagboard__rail {
+  position: relative;
+  padding: 16px 16px 18px;
+}
+
+.tagboard__rail::before {
+  content: '';
+  position: absolute;
+  inset: 16px 16px auto;
+  height: 2px;
+  background: linear-gradient(90deg, #0a342c, #1a6b5b, #0a342c);
+  border-radius: 2px;
+}
+
+.tagboard__tags {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.tag {
+  flex: none;
+  width: 82px;
+  padding-top: 12px;
+  position: relative;
+}
+
+/* the brass hook */
+.tag::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 9px;
+  height: 16px;
+  border: 2px solid #c9a227;
+  border-top: 0;
+  border-radius: 0 0 6px 6px;
+}
+
+.tag__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 9px 5px 7px;
+  border: 0;
+  border-top: 4px solid var(--dept, var(--enamel));
+  border-radius: 4px;
+  background: #f4f6f2;
+  box-shadow: 0 3px 7px rgb(0 0 0 / 30%);
+  transform: rotate(var(--tilt, 0deg));
+  transform-origin: top center;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.14s ease;
+}
+
+.tag__body:hover {
+  transform: rotate(0deg) translateY(-2px);
+}
+
+.tag__no {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+}
+
+.tag__name {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-top: 2px;
+  color: var(--ink);
+  text-align: center;
+}
+
+.tag__in {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--enamel);
+  margin-top: 4px;
+}
+
+.tag__body--late .tag__in {
+  color: var(--ember);
+}

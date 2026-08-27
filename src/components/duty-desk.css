@@ -1,0 +1,54 @@
+.desk__grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1020px) { .desk__grid { grid-template-columns: 1fr; } }
+
+.cov { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.cov__row { display: grid; grid-template-columns: 140px 1fr 60px; align-items: center; gap: 11px; }
+.cov__name { font-size: 12.5px; font-weight: 500; }
+
+.cov__track {
+  display: block;
+  height: 8px;
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.cov__fill { display: block; height: 100%; background: var(--enamel); transition: width 0.5s cubic-bezier(0.2, 0.7, 0.3, 1); }
+.cov__fill--short { background: var(--ember); }
+.cov__fill--tight { background: var(--ochre); }
+.cov__n { font-size: 11.5px; color: var(--ink-2); text-align: right; }
+.cov__n--short { color: var(--ember); font-weight: 600; }
+
+.queue { list-style: none; }
+.queue__item { display: flex; align-items: center; gap: 11px; padding: 11px 18px; border-bottom: 1px solid var(--line); }
+.queue__item:last-child { border-bottom: 0; }
+.queue__item:hover { background: var(--surface-sunk); }
+
+.queue__avatar {
+  width: 29px; height: 29px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--enamel-tint); color: var(--enamel-deep);
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+}
+
+.queue__main { min-width: 0; flex: 1; }
+.queue__title { display: block; font-size: 12.5px; font-weight: 500; }
+.queue__meta { display: block; font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+.queue__actions { display: flex; gap: 6px; flex: none; }
+
+.mini {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  padding: 4px 9px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.mini:hover { border-color: var(--line-strong); }
+.mini--ok { background: var(--enamel); border-color: var(--enamel); color: #fff; }
+.mini--ok:hover { background: var(--enamel-deep); }

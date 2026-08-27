@@ -1,0 +1,11 @@
+allowBuilds:
+  argon2: true
+  esbuild: true
+  unrs-resolver: true
+# Not a monorepo workspace declaration (this is a single package now — see
+# BUILD-PROMPT.md "What to delete"). pnpm still reads build-script allowlists
+# from this file rather than package.json.
+onlyBuiltDependencies:
+  - argon2
+  - esbuild
+  - unrs-resolver
