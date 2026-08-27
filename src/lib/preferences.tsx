@@ -30,7 +30,7 @@ export function PreferenceProvider({
   initialLocale?: Locale;
 }) {
   const [locale, setLocale] = useState<Locale>(initialLocale);
-  const [clock, setClock] = useState<ClockMode>('ethiopian');
+  const [clock, setClock] = useState<ClockMode>('international');
 
   const t = useCallback((en: string, am: string) => (locale === 'am-ET' ? am : en), [locale]);
 

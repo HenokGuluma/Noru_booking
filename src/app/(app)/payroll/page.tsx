@@ -75,7 +75,12 @@ export default async function PayrollPage() {
                         href={`/payroll/${run.id}`}
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '1.3fr 1fr 0.8fr 1fr 0.9fr',
+                          // minmax(0, ...), not bare fr — a bare fr track has an
+                          // implicit min-width equal to its content's min-content
+                          // size, so the net-pay column refuses to shrink and
+                          // spills the row past the card edge instead of just
+                          // wrapping or eliding.
+                          gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.9fr)',
                           alignItems: 'center',
                           gap: 8,
                           padding: '12px 16px',
@@ -83,13 +88,17 @@ export default async function PayrollPage() {
                           color: 'inherit',
                         }}
                       >
-                        <span className="col-name">
+                        <span className="col-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {run.period_start} – {run.period_end}
                         </span>
-                        <span className="mono muted">{run.rule_set_id}</span>
+                        <span className="mono muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {run.rule_set_id}
+                        </span>
                         <span className="mono">{run.headcount}</span>
-                        <span className="mono">{formatBirr(santim(Number(run.net_pay_santim)))}</span>
-                        <span className={`pill ${STATUS_PILL[run.status] ?? 'pill--muted'}`}>
+                        <span className="mono" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {formatBirr(santim(Number(run.net_pay_santim)))}
+                        </span>
+                        <span className={`pill ${STATUS_PILL[run.status] ?? 'pill--muted'}`} style={{ justifySelf: 'start' }}>
                           <span className="pill__dot" />
                           {run.status}
                         </span>

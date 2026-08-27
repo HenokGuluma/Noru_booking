@@ -12,13 +12,13 @@ import './app-shell.css';
  *
  * Two things here are deliberate and easy to undo by accident.
  *
- * First, the date block leads with the Ethiopian date and puts the Gregorian
- * one underneath in smaller type by default — the reverse of almost every
- * business system sold into this market, and the right way round for the
- * people using this one. The Ethiopian/international clock toggle swaps which
- * one leads (and switches the Gregorian date to international weekday/month
- * naming when it does) — but neither ever disappears, banks need the
- * Gregorian date and staff read the Ethiopian one.
+ * First, the date block's Ethiopian/international clock toggle controls which
+ * calendar leads: Ethiopian, in smaller type, underneath — the reverse of
+ * almost every business system sold into this market, and the right way
+ * round for the people using this one — or international, with the
+ * Gregorian date promoted to primary and switched to international
+ * weekday/month naming. Defaults to international; neither ever disappears
+ * either way, banks need the Gregorian date and staff read the Ethiopian one.
  *
  * Second, the property switcher is always visible. Staff move between
  * properties, permissions are scoped per property, and a manager acting on the

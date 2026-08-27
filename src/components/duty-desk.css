@@ -1,4 +1,4 @@
-.desk__grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; align-items: start; }
+.desk__grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 1020px) { .desk__grid { grid-template-columns: 1fr; } }
 
 .cov { list-style: none; display: flex; flex-direction: column; gap: 12px; }

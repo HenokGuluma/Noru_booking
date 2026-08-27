@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { withScope } from '../../../lib/db/scope';
 import { DEMO_ADMIN_USER_ID, DEMO_PROPERTY_ID } from '../../../lib/demo';
 import { Icon } from '../../../components/Icon';
@@ -128,7 +129,11 @@ export default async function AttendancePage() {
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.employee_id}>
-                      <td className="col-name">{row.given_name} {row.fathers_name}</td>
+                      <td>
+                        <Link href={`/attendance/${row.employee_id}`} className="col-name" style={{ textDecoration: 'none', color: 'inherit' }}>
+                          {row.given_name} {row.fathers_name}
+                        </Link>
+                      </td>
                       <td className="muted">{row.department_name}</td>
                       <td className="mono">{row.days_present}</td>
                       <td>
