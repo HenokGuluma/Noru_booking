@@ -49,11 +49,17 @@ Current PAYE bands (Proclamation 1395/2025):
 Single Next.js 15 app. Server Components query Postgres directly — no separate API layer.
 
 ```
-src/app/            routes (App Router)
-src/components/      UI, including the interactive bits (RosterGrid, StaffTable, etc.)
-src/lib/domain/      pure domain logic — calendar, money, payroll, leave rules. no I/O.
-src/lib/db/          connection, tenant scoping, migrations, seed script
-db/migrations/       forward-only SQL — schema, people, ops, payroll, RLS + views, seed data
+noru-crew/
+├── src/
+│   ├── app/              routes (App Router)
+│   ├── components/       UI, including the interactive bits (RosterGrid, StaffTable, etc.)
+│   ├── lib/
+│   │   ├── domain/         pure domain logic — calendar, money, payroll, leave rules. no I/O.
+│   │   ├── db/              connection, tenant scoping, migrations, seed script
+│   │   └── local-store.ts  the local-only CRUD overlay
+│   └── globals.css        design tokens
+├── db/migrations/        forward-only SQL — schema, people, ops, payroll, RLS + views, seed data
+└── docs/                 architecture, data model, localisation, ADRs
 ```
 
 One monolith, not services. Payroll reads attendance, attendance reads rosters, rosters read contracts — splitting that across services buys distributed transactions and nothing else.
