@@ -44,19 +44,31 @@ Current PAYE bands (Proclamation 1395/2025):
 | 10,000 – 14,000 | 30% |
 | above 14,000 | 35% |
 
-## Stack
+## Architecture
 
-Next.js 15 (App Router), Postgres via `postgres.js`, no ORM — the schema uses GiST exclusion constraints, RLS, and generated columns that don't map cleanly to one anyway.
+Single Next.js 15 app. Server Components query Postgres directly — no separate API layer.
 
 ```
 src/app/            routes (App Router)
 src/components/      UI, including the interactive bits (RosterGrid, StaffTable, etc.)
 src/lib/domain/      pure domain logic — calendar, money, payroll, leave rules. no I/O.
 src/lib/db/          connection, tenant scoping, migrations, seed script
-db/migrations/       forward-only SQL, six files
+db/migrations/       forward-only SQL — schema, people, ops, payroll, RLS + views, seed data
 ```
 
+One monolith, not services. Payroll reads attendance, attendance reads rosters, rosters read contracts — splitting that across services buys distributed transactions and nothing else.
+
+No ORM. The schema leans on GiST exclusion constraints, row-level security, and generated columns — none of which map cleanly onto one anyway.
+
 `src/lib/domain` has no database handle and no clock — it's tested with hand-worked numbers, not values captured from itself.
+
+**Enforced by the database, not just the app:**
+- Two shifts can't overlap for one employee (GiST exclusion constraint)
+- Same for overlapping contracts
+- A payroll run can't be approved by whoever calculated it (`CHECK` constraint)
+- A payslip's line items must sum to its net pay (`CHECK` constraint)
+- Punches and audit rows can't be updated or deleted (`REVOKE`)
+- Every query is scoped to one property via row-level security, set per-transaction so a pooled connection can't leak it between requests
 
 ## Running it
 
